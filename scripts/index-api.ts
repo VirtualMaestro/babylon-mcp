@@ -9,7 +9,7 @@ import path from 'path';
 
 async function main() {
   // Define entry points for all Babylon.js packages
-  const repositoryPath = path.resolve('./data/repositories/Babylon.js');
+  const repositoryPath = path.resolve('./data/repositories/Babylon.js').replace(/\\/g, '/');
 
   // All packages with public APIs
   const packages = [
