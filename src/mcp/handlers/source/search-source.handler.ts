@@ -15,15 +15,20 @@ export function register(server: McpServer): void {
       inputSchema: {
         query: z
           .string()
+          .min(1)
+          .max(500)
           .describe(
             'Search query for source code (e.g., "getMeshByName implementation", "scene rendering")'
           ),
         package: z
           .string()
+          .max(100)
           .optional()
           .describe('Optional package filter (e.g., "core", "gui", "materials")'),
         limit: z
           .number()
+          .min(1)
+          .max(50)
           .optional()
           .default(5)
           .describe('Maximum number of results to return (default: 5)'),

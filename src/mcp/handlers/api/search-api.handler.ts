@@ -16,11 +16,15 @@ export function register(server: McpServer): void {
       inputSchema: {
         query: z
           .string()
+          .min(1)
+          .max(500)
           .describe(
             'Search query for Babylon.js API (e.g., "getMeshByName", "Vector3", "Scene")'
           ),
         limit: z
           .number()
+          .min(1)
+          .max(50)
           .optional()
           .default(5)
           .describe('Maximum number of results to return (default: 5)'),

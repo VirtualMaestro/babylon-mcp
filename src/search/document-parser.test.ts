@@ -6,16 +6,34 @@ import os from 'os';
 
 describe('DocumentParser', () => {
   const parser = new DocumentParser();
-  const sampleFile = path.join(
-    process.cwd(),
-    'data/repositories/Documentation/content/features.md'
-  );
 
   let tempDir: string;
   let tempFile: string;
+  let mdFile: string;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'doc-parser-test-'));
+
+    const mdContent = `---
+title: Babylon.js Features
+description: Explore the breadth and depth of Babylon.js capabilities
+keywords: features, capabilities
+---
+
+# Babylon.js Features
+
+Babylon.js is a powerful 3D engine for the web.
+
+\`\`\`javascript
+const engine = new BABYLON.Engine(canvas, true);
+\`\`\`
+
+<Playground id="#ABC123" />
+`;
+
+    mdFile = path.join(tempDir, 'content', 'features.md');
+    await fs.mkdir(path.dirname(mdFile), { recursive: true });
+    await fs.writeFile(mdFile, mdContent);
   });
 
   afterEach(async () => {
@@ -25,7 +43,7 @@ describe('DocumentParser', () => {
   });
 
   it('should parse YAML front matter', async () => {
-    const doc = await parser.parseFile(sampleFile);
+    const doc = await parser.parseFile(mdFile);
 
     expect(doc.title).toBe('Babylon.js Features');
     expect(doc.description).toContain('breadth and depth');
@@ -34,14 +52,14 @@ describe('DocumentParser', () => {
   });
 
   it('should extract category from file path', async () => {
-    const doc = await parser.parseFile(sampleFile);
+    const doc = await parser.parseFile(mdFile);
 
     expect(doc.category).toBe('features');
     expect(doc.breadcrumbs).toEqual(['features']);
   });
 
   it('should extract headings', async () => {
-    const doc = await parser.parseFile(sampleFile);
+    const doc = await parser.parseFile(mdFile);
 
     expect(doc.headings.length).toBeGreaterThan(0);
     expect(doc.headings[0]?.text).toBe('Babylon.js Features');
@@ -49,46 +67,54 @@ describe('DocumentParser', () => {
   });
 
   it('should have markdown content', async () => {
-    const doc = await parser.parseFile(sampleFile);
+    const doc = await parser.parseFile(mdFile);
 
     expect(doc.content).toContain('Babylon.js Features');
     expect(doc.content.length).toBeGreaterThan(0);
   });
 
   it('should extract file path and modified date', async () => {
-    const doc = await parser.parseFile(sampleFile);
+    const doc = await parser.parseFile(mdFile);
 
-    expect(doc.filePath).toBe(sampleFile);
+    expect(doc.filePath).toBe(mdFile);
     expect(doc.lastModified).toBeInstanceOf(Date);
   });
 
   it('should extract code blocks with language specified', async () => {
-    const doc = await parser.parseFile(sampleFile);
+    const doc = await parser.parseFile(mdFile);
 
-    // Test that code blocks are extracted
     expect(Array.isArray(doc.codeBlocks)).toBe(true);
+    expect(doc.codeBlocks.length).toBeGreaterThan(0);
+    expect(doc.codeBlocks[0]?.language).toBe('javascript');
   });
 
   it('should extract playground IDs from Playground tags', async () => {
-    const doc = await parser.parseFile(sampleFile);
+    const doc = await parser.parseFile(mdFile);
 
-    // Test that playground IDs array exists
     expect(Array.isArray(doc.playgroundIds)).toBe(true);
+    expect(doc.playgroundIds).toContain('ABC123');
   });
 
   it('should handle documents without code blocks', async () => {
-    // Create a test with a simple markdown file without code blocks
-    const doc = await parser.parseFile(sampleFile);
+    const noCbFile = path.join(tempDir, 'content', 'no-code.md');
+    await fs.writeFile(noCbFile, '---\ntitle: Simple\n---\n# Simple\nNo code here.');
+
+    const doc = await parser.parseFile(noCbFile);
 
     expect(doc.codeBlocks).toBeDefined();
     expect(Array.isArray(doc.codeBlocks)).toBe(true);
+    expect(doc.codeBlocks.length).toBe(0);
   });
 
   it('should handle documents without playground tags', async () => {
-    const doc = await parser.parseFile(sampleFile);
+    const noPgFile = path.join(tempDir, 'content', 'no-playground.md');
+    await fs.writeFile(noPgFile, '---\ntitle: Simple\n---\n# Simple\nNo playground.');
+
+    const doc = await parser.parseFile(noPgFile);
 
     expect(doc.playgroundIds).toBeDefined();
     expect(Array.isArray(doc.playgroundIds)).toBe(true);
+    expect(doc.playgroundIds.length).toBe(0);
   });
 
   describe('TSX file handling', () => {

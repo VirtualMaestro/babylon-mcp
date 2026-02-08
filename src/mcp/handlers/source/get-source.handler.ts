@@ -16,15 +16,21 @@ export function register(server: McpServer): void {
       inputSchema: {
         filePath: z
           .string()
+          .min(1)
+          .max(500)
           .describe(
             'Relative file path from repository root (e.g., "packages/dev/core/src/scene.ts")'
           ),
         startLine: z
           .number()
+          .min(1)
+          .max(100000)
           .optional()
           .describe('Optional start line number (1-indexed)'),
         endLine: z
           .number()
+          .min(1)
+          .max(100000)
           .optional()
           .describe('Optional end line number (1-indexed)'),
       },
@@ -42,11 +48,13 @@ export function register(server: McpServer): void {
           );
         }
 
+        const lines = sourceCode.split('\n');
+
         return formatJsonResponse({
           filePath,
           startLine: startLine || 1,
-          endLine: endLine || sourceCode.split('\n').length,
-          totalLines: sourceCode.split('\n').length,
+          endLine: endLine || lines.length,
+          totalLines: lines.length,
           /* c8 ignore next 3 */
           language:
             filePath.endsWith('.ts') || filePath.endsWith('.tsx')

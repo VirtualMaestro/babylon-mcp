@@ -41,8 +41,8 @@ describe('search-editor-docs.handler', () => {
     it('should define input schema with query, category, and limit', () => {
       searchEditorDocsHandler.register(mockServer);
 
-      const callArgs = vi.mocked(mockServer.registerTool).mock.calls[0];
-      const schema = callArgs![1];
+      const callArgs = vi.mocked(mockServer.registerTool).mock.calls[0]!;
+      const schema = callArgs[1] as { inputSchema: Record<string, unknown> };
 
       expect(schema.inputSchema).toHaveProperty('query');
       expect(schema.inputSchema).toHaveProperty('category');

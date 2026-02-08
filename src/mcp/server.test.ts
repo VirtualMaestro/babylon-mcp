@@ -174,6 +174,29 @@ describe('BabylonMCPServer', () => {
     it('should handle shutdown when HTTP server not started', async () => {
       await expect(server.shutdown()).resolves.not.toThrow();
     });
+
+    it('should resolve closeHttpServer even if close times out', async () => {
+      vi.useFakeTimers();
+
+      await server.start();
+      const mockApp = (express as unknown as ReturnType<typeof vi.fn>).mock.results[0]!.value;
+      const mockHttpServer = mockApp.listen.mock.results[0]!.value;
+      mockHttpServer.close.mockImplementation(() => {
+        // Do not call callback — simulates a hung connection
+      });
+
+      const shutdownPromise = server.shutdown();
+
+      await vi.advanceTimersByTimeAsync(5000);
+
+      await shutdownPromise;
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        'HTTP server close timed out, forcing shutdown'
+      );
+
+      vi.useRealTimers();
+    });
   });
 
   describe('Error Handling', () => {

@@ -5,7 +5,7 @@
 
 export const MCP_SERVER_CONFIG = {
   name: 'babylon-mcp',
-  version: '1.1.0',
+  version: '1.0.0',
   description: 'Babylon.js Documentation and Examples MCP Server',
   author: 'Babylon MCP Team',
 

@@ -56,7 +56,7 @@ describe('MCP Transport', () => {
       );
 
       expect(StreamableHTTPServerTransport).toHaveBeenCalledWith({
-        sessionIdGenerator: undefined,
+        sessionIdGenerator: expect.any(Function),
         enableJsonResponse: true,
       });
     });

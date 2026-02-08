@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { type Request, type Response } from 'express';
 
 export async function handleMcpRequest(
@@ -14,7 +15,8 @@ export async function handleMcpRequest(
       transport.close();
     });
 
-    await server.connect(transport);
+    // Cast needed: SDK's exactOptionalPropertyTypes mismatch on onclose
+    await server.connect(transport as unknown as Transport);
     await transport.handleRequest(req, res, req.body);
   } catch (error) {
     handleMcpError(error, res);
@@ -23,7 +25,7 @@ export async function handleMcpRequest(
 
 function createMcpTransport(): StreamableHTTPServerTransport {
   return new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
+    sessionIdGenerator: () => undefined as unknown as string,
     enableJsonResponse: true,
   });
 }

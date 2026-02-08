@@ -1,6 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { setupHandlers } from './handlers/index.js';
+import {
+  getSearchInstance,
+  resetSearchInstance,
+} from './handlers/shared/search-instance.js';
+
+vi.mock('./handlers/shared/search-instance.js');
 
 describe('MCP Handlers', () => {
   let mockServer: McpServer;
@@ -11,6 +17,81 @@ describe('MCP Handlers', () => {
     mockServer = {
       registerTool: registerToolSpy,
     } as unknown as McpServer;
+
+    const mockSearch = {
+      search: vi.fn().mockResolvedValue([
+        {
+          title: 'PBR Materials Guide',
+          description: 'Guide to PBR materials',
+          content: 'PBR materials content snippet',
+          url: 'https://doc.babylonjs.com/materials/pbr',
+          category: 'api',
+          source: 'documentation',
+          score: 0.95,
+          keywords: ['pbr', 'materials'],
+        },
+      ]),
+      searchApi: vi.fn().mockResolvedValue([
+        {
+          name: 'Scene',
+          fullName: 'BABYLON.Scene',
+          kind: 'Class',
+          summary: 'Scene class',
+          description: 'Main scene class',
+          parameters: '[]',
+          returns: '',
+          type: 'Scene',
+          examples: '',
+          deprecated: '',
+          see: '',
+          since: '',
+          sourceFile: 'packages/dev/core/src/scene.ts',
+          sourceLine: 100,
+          url: 'https://github.com/BabylonJS/Babylon.js/blob/master/packages/dev/core/src/scene.ts#L100',
+          category: 'api/core',
+          score: 0.9,
+          vector: [],
+        },
+      ]),
+      searchSourceCode: vi.fn().mockResolvedValue([
+        {
+          filePath: 'packages/dev/core/src/scene.ts',
+          package: 'core',
+          content: 'export class Scene { constructor() {} }',
+          startLine: 1,
+          endLine: 200,
+          language: 'typescript',
+          imports: '@babylonjs/core',
+          exports: 'Scene',
+          url: 'https://github.com/BabylonJS/Babylon.js/blob/master/packages/dev/core/src/scene.ts#L1-L200',
+          score: 0.85,
+        },
+      ]),
+      getDocumentByPath: vi.fn().mockResolvedValue({
+        title: 'PBR Materials',
+        description: 'Introduction to PBR',
+        content: 'Full PBR content here',
+        url: 'https://doc.babylonjs.com/divingDeeper/materials/using/introToPBR',
+        category: 'materials',
+        breadcrumbs: 'divingDeeper > materials > using',
+        headings: 'Overview | Setup | Advanced',
+        keywords: 'pbr, materials, rendering',
+        playgroundIds: 'ABC123, DEF456',
+        lastModified: '2024-01-01T00:00:00.000Z',
+        filePath: '/content/materials/pbr.md',
+      }),
+      getSourceFile: vi.fn().mockResolvedValue(
+        'export class Scene {\n  constructor() {}\n  render() {}\n}'
+      ),
+      initialize: vi.fn().mockResolvedValue(undefined),
+    };
+
+    vi.mocked(getSearchInstance).mockResolvedValue(mockSearch as any);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    resetSearchInstance();
   });
 
   describe('setupHandlers', () => {
@@ -79,7 +160,6 @@ describe('MCP Handlers', () => {
 
       const responseText = result.content[0]!.text;
       const parsedResponse = JSON.parse(responseText);
-      // The response includes totalResults, not limit directly
       expect(parsedResponse).toHaveProperty('totalResults');
       expect(parsedResponse).toHaveProperty('results');
     });
@@ -97,10 +177,7 @@ describe('MCP Handlers', () => {
       const result = (await searchHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "No documentation found" or valid JSON
-      if (!responseText.startsWith('No ')) {
-        expect(() => JSON.parse(responseText)).not.toThrow();
-      }
+      expect(() => JSON.parse(responseText)).not.toThrow();
     });
 
     it('should include all parameters in response', async () => {
@@ -108,11 +185,10 @@ describe('MCP Handlers', () => {
       const result = (await searchHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "No documentation found" or valid JSON with query
-      if (!responseText.startsWith('No ')) {
-        const parsedResponse = JSON.parse(responseText);
-        expect(parsedResponse.query).toBe('PBR');
-      }
+      const parsedResponse = JSON.parse(responseText);
+      expect(parsedResponse.query).toBe('PBR');
+      expect(parsedResponse.totalResults).toBe(1);
+      expect(parsedResponse.results[0].title).toBe('PBR Materials Guide');
     });
 
     it('should handle queries and return structured results', async () => {
@@ -120,7 +196,6 @@ describe('MCP Handlers', () => {
       const result = (await searchHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Should either return "No results found" message or valid JSON
       expect(typeof responseText).toBe('string');
       expect(responseText.length).toBeGreaterThan(0);
     });
@@ -155,10 +230,7 @@ describe('MCP Handlers', () => {
       const result = (await getDocHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "Document not found" or valid JSON
-      if (!responseText.startsWith('Document not found')) {
-        expect(() => JSON.parse(responseText)).not.toThrow();
-      }
+      expect(() => JSON.parse(responseText)).not.toThrow();
     });
 
     it('should include document structure in response', async () => {
@@ -166,12 +238,14 @@ describe('MCP Handlers', () => {
       const result = (await getDocHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "Document not found" or valid JSON with document structure
-      if (!responseText.startsWith('Document not found')) {
-        const parsedResponse = JSON.parse(responseText);
-        // Document should have standard fields like title, description, content
-        expect(parsedResponse).toHaveProperty('title');
-      }
+      const parsedResponse = JSON.parse(responseText);
+      expect(parsedResponse).toHaveProperty('title', 'PBR Materials');
+      expect(parsedResponse).toHaveProperty('description', 'Introduction to PBR');
+      expect(parsedResponse).toHaveProperty('content', 'Full PBR content here');
+      expect(parsedResponse.breadcrumbs).toEqual(['divingDeeper', 'materials', 'using']);
+      expect(parsedResponse.headings).toEqual(['Overview', 'Setup', 'Advanced']);
+      expect(parsedResponse.keywords).toEqual(['pbr', 'materials', 'rendering']);
+      expect(parsedResponse.playgroundIds).toEqual(['ABC123', 'DEF456']);
     });
 
     it('should handle document queries and return results', async () => {
@@ -179,7 +253,6 @@ describe('MCP Handlers', () => {
       const result = (await getDocHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Should either return "Document not found" message or valid JSON
       expect(typeof responseText).toBe('string');
       expect(responseText.length).toBeGreaterThan(0);
     });
@@ -213,7 +286,6 @@ describe('MCP Handlers', () => {
       const result = (await apiSearchHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Should have content
       expect(responseText.length).toBeGreaterThan(0);
     });
 
@@ -230,7 +302,6 @@ describe('MCP Handlers', () => {
       const result = (await apiSearchHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Should either return "No API documentation found" or valid JSON
       expect(typeof responseText).toBe('string');
       expect(responseText.length).toBeGreaterThan(0);
     });
@@ -240,14 +311,13 @@ describe('MCP Handlers', () => {
       const result = (await apiSearchHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "No API documentation found" or valid JSON
-      if (!responseText.startsWith('No API documentation')) {
-        expect(() => JSON.parse(responseText)).not.toThrow();
-        const parsed = JSON.parse(responseText);
-        expect(parsed).toHaveProperty('query');
-        expect(parsed).toHaveProperty('totalResults');
-        expect(parsed).toHaveProperty('results');
-      }
+      expect(() => JSON.parse(responseText)).not.toThrow();
+      const parsed = JSON.parse(responseText);
+      expect(parsed).toHaveProperty('query');
+      expect(parsed).toHaveProperty('totalResults');
+      expect(parsed).toHaveProperty('results');
+      expect(parsed.results[0].name).toBe('Scene');
+      expect(parsed.results[0].fullName).toBe('BABYLON.Scene');
     });
   });
 
@@ -297,20 +367,59 @@ describe('MCP Handlers', () => {
       expect(result.content[0]).toHaveProperty('text');
     });
 
-    it('should return JSON-parseable response or no results message', async () => {
+    it('should return no results when source is not editor-docs', async () => {
       const params = { query: 'editor features' };
       const result = (await editorSearchHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "No Editor documentation found" or valid JSON
-      if (!responseText.startsWith('No Editor documentation')) {
-        expect(() => JSON.parse(responseText)).not.toThrow();
-        const parsed = JSON.parse(responseText);
-        expect(parsed).toHaveProperty('query');
-        expect(parsed).toHaveProperty('source', 'editor-docs');
-        expect(parsed).toHaveProperty('totalResults');
-        expect(parsed).toHaveProperty('results');
-      }
+      // Default mock returns source: 'documentation', so editor filter produces no results
+      expect(responseText).toContain('No Editor documentation found');
+    });
+  });
+
+  describe('search_babylon_editor_docs handler with editor results', () => {
+    let editorSearchHandler: (params: unknown) => Promise<unknown>;
+
+    beforeEach(async () => {
+      // Re-mock search to return editor-docs results
+      const editorMockSearch = {
+        search: vi.fn().mockResolvedValue([
+          {
+            title: 'Editor Scripting Guide',
+            description: 'How to attach scripts in the Editor',
+            content: 'Editor scripting content snippet',
+            url: 'https://doc.babylonjs.com/communityExtensions/editor/scripting',
+            category: 'editor/scripting',
+            source: 'editor-docs',
+            score: 0.92,
+            keywords: ['editor', 'scripting'],
+          },
+        ]),
+        searchApi: vi.fn().mockResolvedValue([]),
+        searchSourceCode: vi.fn().mockResolvedValue([]),
+        getDocumentByPath: vi.fn().mockResolvedValue(null),
+        getSourceFile: vi.fn().mockResolvedValue(null),
+        initialize: vi.fn().mockResolvedValue(undefined),
+      };
+
+      vi.mocked(getSearchInstance).mockResolvedValue(editorMockSearch as any);
+
+      setupHandlers(mockServer);
+      editorSearchHandler = registerToolSpy.mock.calls[5]![2];
+    });
+
+    it('should return JSON-parseable response with editor-docs source', async () => {
+      const params = { query: 'editor features' };
+      const result = (await editorSearchHandler(params)) as { content: { type: string; text: string }[] };
+
+      const responseText = result.content[0]!.text;
+      expect(() => JSON.parse(responseText)).not.toThrow();
+      const parsed = JSON.parse(responseText);
+      expect(parsed).toHaveProperty('query', 'editor features');
+      expect(parsed).toHaveProperty('source', 'editor-docs');
+      expect(parsed).toHaveProperty('totalResults', 1);
+      expect(parsed).toHaveProperty('results');
+      expect(parsed.results[0].title).toBe('Editor Scripting Guide');
     });
   });
 
@@ -416,10 +525,11 @@ describe('MCP Handlers', () => {
       const result = (await searchSourceHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "No source code found", "Error...", or valid JSON
-      if (!responseText.startsWith('No ') && !responseText.startsWith('Error ')) {
-        expect(() => JSON.parse(responseText)).not.toThrow();
-      }
+      expect(() => JSON.parse(responseText)).not.toThrow();
+      const parsed = JSON.parse(responseText);
+      expect(parsed).toHaveProperty('query');
+      expect(parsed).toHaveProperty('totalResults', 1);
+      expect(parsed).toHaveProperty('results');
     });
 
     it('should handle queries with package filter', async () => {
@@ -436,20 +546,15 @@ describe('MCP Handlers', () => {
       const result = (await searchSourceHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Should either return "No source code found", "Error...", or JSON with results
-      if (!responseText.startsWith('No ') && !responseText.startsWith('Error ')) {
-        const parsed = JSON.parse(responseText);
-        expect(parsed).toHaveProperty('query');
-        expect(parsed).toHaveProperty('totalResults');
-        expect(parsed).toHaveProperty('results');
+      const parsed = JSON.parse(responseText);
+      expect(parsed).toHaveProperty('query');
+      expect(parsed).toHaveProperty('totalResults');
+      expect(parsed).toHaveProperty('results');
 
-        if (parsed.results && parsed.results.length > 0) {
-          const firstResult = parsed.results[0];
-          expect(firstResult).toHaveProperty('filePath');
-          expect(firstResult).toHaveProperty('startLine');
-          expect(firstResult).toHaveProperty('endLine');
-        }
-      }
+      const firstResult = parsed.results[0];
+      expect(firstResult).toHaveProperty('filePath', 'packages/dev/core/src/scene.ts');
+      expect(firstResult).toHaveProperty('startLine', 1);
+      expect(firstResult).toHaveProperty('endLine', 200);
     });
   });
 
@@ -493,10 +598,7 @@ describe('MCP Handlers', () => {
       const result = (await getSourceHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "Source file not found" or valid JSON
-      if (!responseText.startsWith('Source file not found')) {
-        expect(() => JSON.parse(responseText)).not.toThrow();
-      }
+      expect(() => JSON.parse(responseText)).not.toThrow();
     });
 
     it('should include source file metadata in response', async () => {
@@ -504,13 +606,11 @@ describe('MCP Handlers', () => {
       const result = (await getSourceHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Response may be "Source file not found" or JSON with metadata
-      if (!responseText.startsWith('Source file not found')) {
-        const parsedResponse = JSON.parse(responseText);
-        expect(parsedResponse).toHaveProperty('filePath');
-        expect(parsedResponse).toHaveProperty('language');
-        expect(parsedResponse).toHaveProperty('content');
-      }
+      const parsedResponse = JSON.parse(responseText);
+      expect(parsedResponse).toHaveProperty('filePath', 'packages/dev/core/src/scene.ts');
+      expect(parsedResponse).toHaveProperty('language', 'typescript');
+      expect(parsedResponse).toHaveProperty('content');
+      expect(parsedResponse.content).toContain('export class Scene');
     });
 
     it('should handle file retrieval requests', async () => {
@@ -518,7 +618,6 @@ describe('MCP Handlers', () => {
       const result = (await getSourceHandler(params)) as { content: { type: string; text: string }[] };
 
       const responseText = result.content[0]!.text;
-      // Should either return "Source file not found" message or valid JSON
       expect(typeof responseText).toBe('string');
       expect(responseText.length).toBeGreaterThan(0);
     });

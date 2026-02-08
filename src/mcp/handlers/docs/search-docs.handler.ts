@@ -14,13 +14,16 @@ export function register(server: McpServer): void {
       description:
         'Search Babylon.js documentation for API references, guides, and tutorials',
       inputSchema: {
-        query: z.string().describe('Search query for Babylon.js documentation'),
+        query: z.string().min(1).max(500).describe('Search query for Babylon.js documentation'),
         category: z
           .string()
+          .max(100)
           .optional()
           .describe('Optional category filter (e.g., "api", "tutorial", "guide")'),
         limit: z
           .number()
+          .min(1)
+          .max(50)
           .optional()
           .default(5)
           .describe('Maximum number of results to return (default: 5)'),

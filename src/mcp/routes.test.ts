@@ -132,6 +132,17 @@ describe('Express Routes', () => {
 
       expect(response.status).toBe(200);
     });
+
+    it('should configure express.json with 1mb limit', () => {
+      const jsonSpy = vi.spyOn(express, 'json');
+
+      const testApp = express();
+      setupRoutes(testApp, mockServer);
+
+      expect(jsonSpy).toHaveBeenCalledWith({ limit: '1mb' });
+
+      jsonSpy.mockRestore();
+    });
   });
 
   describe('404 Handling', () => {

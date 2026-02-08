@@ -1,24 +1,36 @@
 import { describe, it, expect } from 'vitest';
 import { withErrorHandling } from './error-handlers.js';
 
+type McpResult = { content: Array<{ type: 'text'; text: string }> };
+
+const mcpResponse = (text: string): McpResult => ({
+  content: [{ type: 'text' as const, text }],
+});
+
+const throwingHandler = (error: unknown) =>
+  async (_args: Record<string, unknown>): Promise<McpResult> => {
+    throw error;
+  };
+
 describe('Error Handlers', () => {
   describe('withErrorHandling', () => {
     it('should return result when handler succeeds', async () => {
-      const handler = async (value: number) => ({ result: value * 2 });
+      const handler = async (args: Record<string, unknown>) =>
+        mcpResponse(String(Number(args['value']) * 2));
       const wrappedHandler = withErrorHandling(handler, 'testing');
 
-      const result = await wrappedHandler(5);
+      const result = await wrappedHandler({ value: 5 });
 
-      expect(result).toEqual({ result: 10 });
+      expect(result.content[0]!.text).toBe('10');
     });
 
     it('should catch and format errors when handler throws', async () => {
-      const handler = async () => {
-        throw new Error('Test error');
-      };
-      const wrappedHandler = withErrorHandling(handler, 'processing data');
+      const wrappedHandler = withErrorHandling(
+        throwingHandler(new Error('Test error')),
+        'processing data'
+      );
 
-      const result = await wrappedHandler();
+      const result = await wrappedHandler({});
 
       expect(result).toHaveProperty('content');
       expect(Array.isArray(result.content)).toBe(true);
@@ -28,48 +40,46 @@ describe('Error Handlers', () => {
     });
 
     it('should handle string errors', async () => {
-      const handler = async () => {
-        throw 'String error message';
-      };
-      const wrappedHandler = withErrorHandling(handler, 'fetching');
+      const wrappedHandler = withErrorHandling(
+        throwingHandler('String error message'),
+        'fetching'
+      );
 
-      const result = await wrappedHandler();
+      const result = await wrappedHandler({});
 
       expect(result.content[0]!.text).toContain('Error fetching');
       expect(result.content[0]!.text).toContain('String error message');
     });
 
     it('should handle non-Error objects', async () => {
-      const handler = async () => {
-        throw { code: 500, message: 'Server error' };
-      };
-      const wrappedHandler = withErrorHandling(handler, 'API call');
+      const wrappedHandler = withErrorHandling(
+        throwingHandler({ code: 500, message: 'Server error' }),
+        'API call'
+      );
 
-      const result = await wrappedHandler();
+      const result = await wrappedHandler({});
 
       expect(result.content[0]!.text).toContain('Error API call');
     });
 
     it('should pass through handler arguments', async () => {
-      const handler = async (a: number, b: string, c: boolean) => ({
-        a,
-        b,
-        c,
-      });
+      const handler = async (args: Record<string, unknown>) =>
+        mcpResponse(JSON.stringify(args));
       const wrappedHandler = withErrorHandling(handler, 'testing');
 
-      const result = await wrappedHandler(42, 'test', true);
+      const result = await wrappedHandler({ a: 42, b: 'test', c: true });
 
-      expect(result).toEqual({ a: 42, b: 'test', c: true });
+      const parsed = JSON.parse(result.content[0]!.text);
+      expect(parsed).toEqual({ a: 42, b: 'test', c: true });
     });
 
     it('should handle async errors in promise rejections', async () => {
-      const handler = async () => {
+      const handler = async (_args: Record<string, unknown>): Promise<McpResult> => {
         return Promise.reject(new Error('Async rejection'));
       };
       const wrappedHandler = withErrorHandling(handler, 'async operation');
 
-      const result = await wrappedHandler();
+      const result = await wrappedHandler({});
 
       expect(result.content[0]!.text).toContain('Error async operation');
       expect(result.content[0]!.text).toContain('Async rejection');

@@ -14,7 +14,7 @@ export function register(server: McpServer): void {
       description:
         'Retrieve full content of a specific Babylon.js documentation page',
       inputSchema: {
-        path: z.string().describe('Documentation file path or topic identifier'),
+        path: z.string().min(1).max(500).describe('Documentation file path or topic identifier'),
       },
     },
     withErrorHandling(

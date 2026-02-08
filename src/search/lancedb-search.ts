@@ -3,8 +3,11 @@ import { pipeline } from '@xenova/transformers';
 import type { SearchOptions, SearchResult } from './types.js';
 import type { EmbeddedDocument } from './lancedb-indexer.js';
 import type { EmbeddedApiDoc } from './api-indexer.js';
+import { buildWhereClause, resolveSecurePath } from './input-sanitizer.js';
 import fs from 'fs/promises';
 import path from 'path';
+
+const REPO_BASE_PATH = './data/repositories';
 
 export class LanceDBSearch {
   private db: any;
@@ -39,12 +42,10 @@ export class LanceDBSearch {
     const limit = options.limit || 5;
     const queryVector = await this.generateEmbedding(query);
 
-    // Build the search query
     let searchQuery = this.table.vectorSearch(queryVector).limit(limit);
 
-    // Apply category filter if provided
     if (options.category) {
-      searchQuery = searchQuery.where(`category = '${options.category}'`);
+      searchQuery = searchQuery.where(buildWhereClause('category', options.category));
     }
 
     const results = await searchQuery.toArray();
@@ -56,7 +57,7 @@ export class LanceDBSearch {
       url: doc.url,
       category: doc.category,
       source: doc.source,
-      score: doc._distance ? 1 - doc._distance : 0, // Convert distance to similarity score
+      score: doc._distance ? 1 - doc._distance : 0,
       keywords: doc.keywords.split(', ').filter(Boolean),
     }));
   }
@@ -69,10 +70,8 @@ export class LanceDBSearch {
     const limit = options.limit || 5;
     const queryVector = await this.generateEmbedding(query);
 
-    // Open the API table (use babylon_api for production, babylon_api_test for testing)
     const apiTable = await this.db.openTable('babylon_api');
 
-    // Perform vector search
     const results = await apiTable
       .vectorSearch(queryVector)
       .limit(limit)
@@ -80,7 +79,7 @@ export class LanceDBSearch {
 
     return results.map((doc: any) => ({
       ...doc,
-      score: doc._distance ? 1 - doc._distance : 0, // Convert distance to similarity score
+      score: doc._distance ? 1 - doc._distance : 0,
     }));
   }
 
@@ -91,7 +90,7 @@ export class LanceDBSearch {
 
     const results = await this.table
       .query()
-      .where(`id = '${docId}'`)
+      .where(buildWhereClause('id', docId))
       .limit(1)
       .toArray();
 
@@ -103,16 +102,14 @@ export class LanceDBSearch {
       throw new Error('Search not initialized. Call initialize() first.');
     }
 
-    // Try to find document by URL first
     let results = await this.table
       .query()
-      .where(`url = '${filePath}'`)
+      .where(buildWhereClause('url', filePath))
       .limit(1)
       .toArray();
 
     if (results.length > 0) {
       const doc = results[0];
-      // Fetch fresh content from local file if available
       const freshContent = await this.fetchLocalContent(doc.filePath);
       if (freshContent) {
         return { ...doc, content: freshContent };
@@ -120,34 +117,28 @@ export class LanceDBSearch {
       return doc;
     }
 
-    // If not found by URL, try by docId conversion
     const docId = this.pathToDocId(filePath);
     return this.getDocument(docId);
   }
 
   private async fetchLocalContent(filePath: string): Promise<string | null> {
-    try {
-      // Check if the file exists in our local repositories
-      const possiblePaths = [
-        filePath,
-        path.join('./data/repositories/Documentation', filePath.replace(/^.*\/content\//, '')),
-        path.join('./data/repositories/Babylon.js', filePath.replace(/^.*\/Babylon\.js\//, '')),
-        path.join('./data/repositories/havok', filePath.replace(/^.*\/havok\//, '')),
-      ];
+    const possiblePaths = [
+      filePath,
+      path.join(REPO_BASE_PATH, 'Documentation', filePath.replace(/^.*\/content\//, '')),
+      path.join(REPO_BASE_PATH, 'Babylon.js', filePath.replace(/^.*\/Babylon\.js\//, '')),
+      path.join(REPO_BASE_PATH, 'havok', filePath.replace(/^.*\/havok\//, '')),
+    ];
 
-      for (const possiblePath of possiblePaths) {
-        try {
-          const content = await fs.readFile(possiblePath, 'utf-8');
-          return content;
-        } catch {
-          // Continue to next path
-        }
+    for (const possiblePath of possiblePaths) {
+      try {
+        const content = await fs.readFile(possiblePath, 'utf-8');
+        return content;
+      } catch {
+        // Continue to next path
       }
-
-      return null;
-    } catch (error) {
-      return null;
     }
+
+    return null;
   }
 
   private async generateEmbedding(text: string): Promise<number[]> {
@@ -164,13 +155,11 @@ export class LanceDBSearch {
   }
 
   private extractRelevantSnippet(content: string, query: string, snippetLength: number = 300): string {
-    // Simple snippet extraction - find first occurrence of query terms
     const queryTerms = query.toLowerCase().split(/\s+/);
 
     let bestIndex = 0;
     let maxMatches = 0;
 
-    // Find the position with most query term matches
     const words = content.split(/\s+/);
     for (let i = 0; i < words.length; i++) {
       const windowText = words.slice(i, i + 50).join(' ').toLowerCase();
@@ -181,7 +170,6 @@ export class LanceDBSearch {
       }
     }
 
-    // Extract snippet around best match
     const start = Math.max(0, bestIndex - 10);
     const snippetWords = words.slice(start, start + 60);
     let snippet = snippetWords.join(' ');
@@ -198,15 +186,8 @@ export class LanceDBSearch {
   }
 
   private pathToDocId(filePath: string): string {
-    // Remove .md extension if present
     let normalizedPath = filePath.replace(/\.md$/, '');
-
-    // Strip any leading path up to and including /content/
-    // This handles both full paths and relative paths
     normalizedPath = normalizedPath.replace(/^.*\/content\//, '');
-
-    // Convert slashes to underscores and prepend source name
-    // Note: source name is "documentation" (lowercase) as defined in index-docs.ts
     const pathWithUnderscores = normalizedPath.replace(/\//g, '_');
     return `documentation_${pathWithUnderscores}`;
   }
@@ -227,7 +208,7 @@ export class LanceDBSearch {
     let searchQuery = sourceTable.vectorSearch(queryVector).limit(limit);
 
     if (options.package) {
-      searchQuery = searchQuery.where(`package = '${options.package}'`);
+      searchQuery = searchQuery.where(buildWhereClause('package', options.package));
     }
 
     const results = await searchQuery.toArray();
@@ -242,9 +223,16 @@ export class LanceDBSearch {
     startLine?: number,
     endLine?: number
   ): Promise<string | null> {
+    const basePath = path.join(REPO_BASE_PATH, 'Babylon.js');
+    const securePath = resolveSecurePath(basePath, filePath);
+
+    if (!securePath) {
+      console.error(`Path traversal blocked: ${filePath}`);
+      return null;
+    }
+
     try {
-      const fullPath = path.join('./data/repositories/Babylon.js', filePath);
-      const content = await fs.readFile(fullPath, 'utf-8');
+      const content = await fs.readFile(securePath, 'utf-8');
 
       if (startLine !== undefined && endLine !== undefined) {
         const lines = content.split('\n');

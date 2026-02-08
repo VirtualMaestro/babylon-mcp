@@ -83,8 +83,16 @@ export class BabylonMCPServer {
   private async closeHttpServer(): Promise<void> {
     if (!this.httpServer) return;
 
+    const SHUTDOWN_TIMEOUT_MS = 5000;
+
     await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        console.log('HTTP server close timed out, forcing shutdown');
+        resolve();
+      }, SHUTDOWN_TIMEOUT_MS);
+
       this.httpServer?.close(() => {
+        clearTimeout(timeout);
         console.log('HTTP server closed');
         resolve();
       });

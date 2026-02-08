@@ -12,7 +12,7 @@ export function setupRoutes(
 }
 
 function setupMiddleware(app: express.Application): void {
-  app.use(express.json());
+  app.use(express.json({ limit: '1mb' }));
 }
 
 function registerEndpoints(
