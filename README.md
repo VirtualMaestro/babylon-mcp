@@ -187,7 +187,7 @@ Search for "Vector3" in Babylon.js documentation
 
 The `/mcp` command connects to the HTTP endpoint and makes the Babylon.js tools available in your session.
 
-**Note**: Configuration file support for HTTP MCP servers is being investigated. Currently, use the CLI command above for the most reliable connection method.
+**Note**: The project also includes `.claude/mcp.json` which auto-configures the connection when opening the project in Claude Code.
 
 ## Available MCP Tools
 

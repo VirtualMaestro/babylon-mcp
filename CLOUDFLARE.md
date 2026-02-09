@@ -1,13 +1,27 @@
 # Alpine Linux Cloudflare Tunnel
+
+## Setup
+
+```bash
 wget -O cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
 chmod +x ./cloudflared
 mv cloudflared /usr/local/bin
 cloudflared tunnel login
-tunnel: flatearthdefense
-credentials-file: /root/.cloudflared/8cc15306-84a2-458a-b5bd-ccf07f61df8c.json
+```
+
+## Configuration
+
+After login, create a tunnel and configure ingress in `~/.cloudflared/config.yml`:
+
+```yaml
+tunnel: <YOUR_TUNNEL_NAME>
+credentials-file: /root/.cloudflared/<YOUR_TUNNEL_ID>.json
 
 ingress:
-- hostname: www.flatearthdefense.com
-  service: http://localhost:4000
-  originRequest:
-- service: http_status:404
+  - hostname: <YOUR_HOSTNAME>
+    service: http://localhost:4000
+    originRequest:
+  - service: http_status:404
+```
+
+Replace placeholders with your actual tunnel name, credentials file, and hostname.

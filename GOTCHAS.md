@@ -82,17 +82,24 @@ NEW_RELIC_APP_NAME=babylon-mcp
 
 ## Claude Code CLI Integration
 
-### Issue: Config File Approach Doesn't Work
+### Connecting to the MCP Server
 
-**Symptom:**
-Adding MCP server configuration to `~/.claude/config.json` doesn't make the server available in Claude Code.
+The MCP server uses HTTP transport with StreamableHTTPServerTransport. You can connect via config file or CLI command.
 
-**Cause:**
-HTTP MCP server configuration in config files may not be fully supported or requires specific formatting that hasn't been determined yet.
+**Option 1: Project config (recommended)**
 
-**Solution:**
-Use the CLI command approach instead:
+The project includes `.claude/mcp.json` which auto-configures the connection:
+```json
+{
+  "mcpServers": {
+    "babylon-mcp": {
+      "url": "http://localhost:4000/mcp"
+    }
+  }
+}
+```
 
+**Option 2: CLI command**
 ```bash
 # In Claude Code, connect directly with the URL
 /mcp http://localhost:4000/mcp
@@ -101,7 +108,6 @@ Use the CLI command approach instead:
 **Important:**
 - The MCP server must be running before connecting
 - Use `npm run dev` or `npm start` to start the server first
-- This is a known limitation being researched (see ROADMAP.md)
 
 ---
 

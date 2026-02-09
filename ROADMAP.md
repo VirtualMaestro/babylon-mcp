@@ -71,10 +71,10 @@ Successfully implemented vector search with local embeddings:
   - [X] Include: CHANGELOG.md, package READMEs, contributing guides
   - [X] Phase 2: Evaluate TypeDoc integration for API reference
 - [ ] Create documentation change detection system
-- [ ] Research and fix Claude Code config file integration issue
+- [X] Claude Code config file integration
   - CLI `/mcp http://localhost:4000/mcp` works
-  - Config file `~/.claude/config.json` approach does not work
-  - Need to investigate proper config file format for HTTP MCP servers
+  - Project config `.claude/mcp.json` with `"url"` field works
+  - Claude Desktop config with `"url"` field works
 
 ### 1.3 Search Index Implementation
 - [X] Design indexing strategy for markdown documentation
@@ -367,11 +367,12 @@ Successfully implemented vector search with local embeddings:
 ## Technical Architecture Decisions
 
 ### MCP Implementation
-- **SDK**: @modelcontextprotocol/sdk (official TypeScript SDK)
-- **Transport**: HTTP with Server-Sent Events (SSE) on port 3001
-- **MCP Endpoint**: `/mcp/sse`
-- **Tools**: search_babylon_docs, get_babylon_doc, search_babylon_examples, provide_feedback, submit_suggestion, vote_on_suggestion, browse_suggestions
-- **Resources**: babylon_context (common framework information)
+- **SDK**: @modelcontextprotocol/sdk v1.26+ (official TypeScript SDK)
+- **Transport**: HTTP with StreamableHTTPServerTransport (stateless mode) on port 4000
+- **MCP Endpoint**: `/mcp` (POST - JSON-RPC requests)
+- **Current Tools**: search_babylon_docs, get_babylon_doc, search_babylon_api, search_babylon_source, get_babylon_source, search_babylon_editor_docs
+- **Planned Tools**: search_babylon_examples, provide_feedback, submit_suggestion, vote_on_suggestion, browse_suggestions
+- **Resources**: babylon_context (common framework information) - planned
 
 ### Search & Indexing (✅ Implemented)
 - **Vector Database**: LanceDB for vector storage and similarity search
